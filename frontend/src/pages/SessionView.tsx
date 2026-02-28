@@ -231,6 +231,35 @@ const SessionView: React.FC = () => {
         };
     }, [code, navigate]);
 
+    // 5-Second Auto-Refresh Logic
+    useEffect(() => {
+        if (!session || session.status === 'ended' || !session._id) return;
+
+        const refreshInterval = setInterval(async () => {
+            try {
+                const questionsRes = await questionService.getSessionQuestions(session._id);
+                if (questionsRes.success) {
+                    setQuestions(prev => {
+                        const newQuestions = questionsRes.data;
+                        // Simple merge/deduplication to avoid flickering
+                        // If count is same and IDs match, don't update to preserve local state
+                        if (newQuestions.length === prev.length) {
+                            const allMatch = newQuestions.every(nq => prev.find(pq => pq._id === nq._id));
+                            if (allMatch) return prev;
+                        }
+                        return [...newQuestions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    });
+                }
+            } catch (err) {
+                console.error('Auto-refresh marks error:', err);
+            }
+        }, 5000);
+
+        return () => clearInterval(refreshInterval);
+    }, [session]);
+
+
+
     // Pulse Check Timer & Helpers
     useEffect(() => {
         let interval: any;
@@ -480,6 +509,8 @@ const SessionView: React.FC = () => {
                         <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', lineHeight: 1 }}>CODE</span>
                         <span style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-primary-light)' }}>{session.code}</span>
                     </div>
+
+
 
                     {user?.role?.toLowerCase() === 'teacher' ? (
                         <div style={{ display: 'flex', gap: '0.75rem' }}>

@@ -1,6 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
-import { guestJoinSession, getPublicSessionInfo } from '../controllers/guestController';
+import { guestJoinSession, getPublicSessionInfo, createGuestQuestion, getGuestQuestions } from '../controllers/guestController';
 
 const router = express.Router();
 
@@ -22,5 +22,24 @@ router.post(
     ],
     guestJoinSession
 );
+
+// @route   POST /api/guest/questions
+// @desc    Post a question as a guest
+// @access  Public
+router.post(
+    '/questions',
+    [
+        body('sessionId').notEmpty().withMessage('Session ID is required'),
+        body('content').trim().notEmpty().withMessage('Question content is required'),
+        body('name').trim().notEmpty().withMessage('Name is required'),
+        body('email').trim().isEmail().withMessage('Valid email is required')
+    ],
+    createGuestQuestion
+);
+
+// @route   GET /api/guest/questions/:sessionId
+// @desc    Get all questions for a session
+// @access  Public
+router.get('/questions/:sessionId', getGuestQuestions);
 
 export default router;

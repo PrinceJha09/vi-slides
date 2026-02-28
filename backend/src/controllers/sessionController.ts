@@ -6,26 +6,44 @@ import { generateMoodSummary } from '../services/aiService';
 import QRCode from 'qrcode';
 import os from 'os';
 
-// Helper to get local IP address
 const getLocalUrl = (): string => {
-    let baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // 1. High priority: Explicit PUBLIC_URL (ngrok, tunnel, domain)
+    if (process.env.PUBLIC_URL) {
+        return process.env.PUBLIC_URL.replace(/\/$/, ''); // Remove trailing slash
+    }
 
-    if (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost')) {
-        const interfaces = os.networkInterfaces();
-        for (const name of Object.keys(interfaces)) {
-            for (const iface of interfaces[name]!) {
-                if (!iface.internal && iface.family === 'IPv4') {
-                    if (iface.address.startsWith('192.168.')) {
-                        return `http://${iface.address}:5173`;
-                    }
-                    if (baseUrl.includes('localhost')) {
-                        baseUrl = `http://${iface.address}:5173`;
-                    }
-                }
+    // 2. Medium priority: FRONTEND_URL if it's not localhost
+    const envUrl = process.env.FRONTEND_URL;
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+        return envUrl.replace(/\/$/, '');
+    }
+
+    // 3. Fallback: Detect Local Network IP (for same-WiFi usage)
+    const interfaces = os.networkInterfaces();
+    let detectedIp = '';
+
+    for (const name of Object.keys(interfaces)) {
+        const ifaceList = interfaces[name];
+        if (!ifaceList) continue;
+
+        for (const iface of ifaceList) {
+            // Skip internal (loopback) and non-IPv4 addresses
+            if (iface.internal || iface.family !== 'IPv4') continue;
+
+            // Prioritize common private networks
+            if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.')) {
+                return `http://${iface.address}:5173`;
             }
+            detectedIp = iface.address;
         }
     }
-    return baseUrl;
+
+    if (detectedIp) {
+        return `http://${detectedIp}:5173`;
+    }
+
+    // 4. Ultimate Fallback: Default Localhost
+    return envUrl || 'http://localhost:5173';
 };
 
 // Helper to generate a unique 6-character code
@@ -153,6 +171,29 @@ export const getSessionDetails = async (req: Request, res: Response): Promise<vo
                 message: 'Session not found'
             });
             return;
+        }
+
+        if (session) {
+            const baseUrl = getLocalUrl();
+            // If the current detected base URL is public but the session's joinUrl is local/localhost,
+            // refresh it so the QR code matches the current tunnel/domain.
+            if (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1') &&
+                (!session.joinUrl || session.joinUrl.includes('localhost') || session.joinUrl.includes('127.0.0.1'))) {
+
+                const joinUrl = session.isQuerySession ? `${baseUrl}/ask/${session.code}` : `${baseUrl}/join/${session.code}`;
+                try {
+                    const qrCodeDataUrl = await QRCode.toDataURL(joinUrl, {
+                        width: 300,
+                        margin: 2,
+                        color: { dark: '#6366f1', light: '#ffffff' }
+                    });
+                    session.qrCodeDataUrl = qrCodeDataUrl;
+                    session.joinUrl = joinUrl;
+                    await session.save();
+                } catch (qrError) {
+                    console.error('QR refresh error in getSessionDetails:', qrError);
+                }
+            }
         }
 
         res.status(200).json({

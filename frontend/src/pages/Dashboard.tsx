@@ -27,9 +27,6 @@ const Dashboard: React.FC = () => {
     const [showCertModal, setShowCertModal] = useState(false);
     const [showQRModal, setShowQRModal] = useState(false);
     const [activeSession, setActiveSession] = useState<any>(null);
-    const [querySession, setQuerySession] = useState<any>(null);
-    const [isEditingQueryUrl, setIsEditingQueryUrl] = useState(false);
-    const [tempQueryUrl, setTempQueryUrl] = useState('');
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     useEffect(() => {
@@ -76,12 +73,6 @@ const Dashboard: React.FC = () => {
                     const response = await sessionService.getActiveSession();
                     if (response.success && response.data) {
                         setActiveSession(response.data);
-                    }
-
-                    // Also fetch persistent query session
-                    const qResponse = await sessionService.getQuerySession();
-                    if (qResponse.success) {
-                        setQuerySession(qResponse.data);
                     }
                 } catch (err) {
                     console.error('Error fetching sessions:', err);
@@ -307,72 +298,7 @@ const Dashboard: React.FC = () => {
                                 <p className="text-muted mt-1">Create and grade student assignments.</p>
                                 <button onClick={() => navigate('/assignments')} className="btn btn-primary mt-2">Manage Assignments</button>
                             </div>
-                            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0) 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                                <h3>❓ Query Mode</h3>
-                                <p className="text-muted mt-1">Let students post questions without login.</p>
 
-                                <div style={{ background: 'white', padding: '10px', borderRadius: '8px', margin: '1rem 0', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-                                    {querySession?.code ? (
-                                        <img
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(querySession.customQueryUrl || querySession.joinUrl)}`}
-                                            alt="Query QR Code"
-                                            style={{ width: '120px', height: '120px' }}
-                                        />
-                                    ) : (
-                                        <div style={{ width: '120px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666' }}>Loading...</div>
-                                    )}
-                                </div>
-
-                                {isEditingQueryUrl ? (
-                                    <div style={{ width: '100%', marginBottom: '1rem' }}>
-                                        <input
-                                            type="text"
-                                            className="form-input"
-                                            value={tempQueryUrl}
-                                            onChange={(e) => setTempQueryUrl(e.target.value)}
-                                            placeholder="Paste Google Form or Tunnel URL"
-                                            style={{ fontSize: '0.8rem', padding: '0.5rem' }}
-                                        />
-                                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        const response = await sessionService.updateQueryUrl(tempQueryUrl);
-                                                        if (response.success) {
-                                                            setQuerySession(response.data);
-                                                            setIsEditingQueryUrl(false);
-                                                            setToast({ message: 'URL updated successfully!', type: 'success' });
-                                                        }
-                                                    } catch (err) {
-                                                        setToast({ message: 'Failed to update URL.', type: 'error' });
-                                                    }
-                                                }}
-                                                className="btn btn-primary"
-                                                style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                                            >Save</button>
-                                            <button
-                                                onClick={() => setIsEditingQueryUrl(false)}
-                                                className="btn btn-secondary"
-                                                style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                                            >Cancel</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div style={{ marginBottom: '1rem' }}>
-                                        <button
-                                            onClick={() => {
-                                                setTempQueryUrl(querySession?.customQueryUrl || querySession?.joinUrl || '');
-                                                setIsEditingQueryUrl(true);
-                                            }}
-                                            style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
-                                        >
-                                            ⚙️ Configure Link
-                                        </button>
-                                    </div>
-                                )}
-
-                                <button onClick={() => navigate('/query-mode')} className="btn btn-primary btn-block">Start Query Mode</button>
-                            </div>
                         </>
                     ) : (
                         <>

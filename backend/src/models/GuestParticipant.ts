@@ -20,7 +20,9 @@ const guestParticipantSchema = new Schema<IGuestParticipant>({
         required: [true, 'Guest email is required'],
         trim: true,
         lowercase: true,
-        match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
+        // Relaxed email validation: only require "something@something"
+        // to avoid blocking guests with non-standard domains.
+        match: [/^.+@.+$/, 'Please provide a valid email']
     },
     session: {
         type: Schema.Types.ObjectId,

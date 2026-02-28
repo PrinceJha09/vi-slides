@@ -97,6 +97,7 @@ export const getPublicSessionInfo = async (req: Request, res: Response): Promise
         res.status(200).json({
             success: true,
             data: {
+                _id: session._id,
                 title: session.title,
                 status: session.status,
                 code: session.code
@@ -107,6 +108,76 @@ export const getPublicSessionInfo = async (req: Request, res: Response): Promise
         res.status(500).json({
             success: false,
             message: 'Server error fetching session info'
+        });
+    }
+};
+
+// @desc    Post a question as a guest
+// @route   POST /api/guest/questions
+// @access  Public
+export const createGuestQuestion = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { sessionId, content, name, email } = req.body;
+
+        if (!sessionId || !content || !name || !email) {
+            res.status(400).json({
+                success: false,
+                message: 'Session ID, content, name, and email are required'
+            });
+            return;
+        }
+
+        const session = await Session.findById(sessionId);
+        if (!session) {
+            res.status(404).json({ success: false, message: 'Session not found' });
+            return;
+        }
+
+        const question = await Question.create({
+            content,
+            session: sessionId,
+            guestName: name,
+            guestEmail: email,
+            status: 'active',
+            isDirectToTeacher: true,
+            analysisStatus: 'not_requested'
+        });
+
+        // Emit real-time event
+        emitToSession(session.code, 'new_question', question);
+
+        res.status(201).json({
+            success: true,
+            data: question
+        });
+    } catch (error) {
+        console.error('Create guest question error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error during question creation'
+        });
+    }
+};
+
+// @desc    Get all questions for a session (Public)
+// @route   GET /api/guest/questions/:sessionId
+// @access  Public
+export const getGuestQuestions = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { sessionId } = req.params;
+        const questions = await Question.find({ session: sessionId, status: 'active' })
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: questions.length,
+            data: questions
+        });
+    } catch (error) {
+        console.error('Get guest questions error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error fetching questions'
         });
     }
 };

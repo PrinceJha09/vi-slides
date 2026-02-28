@@ -12,6 +12,9 @@ const QueryPPTView: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [session, setSession] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+    const [autoRefresh, setAutoRefresh] = useState(true);
 
     useEffect(() => {
         const initQueryMode = async () => {
@@ -55,6 +58,42 @@ const QueryPPTView: React.FC = () => {
             socketService.offNewQuestion();
         };
     }, []);
+
+    // Manual refresh handler using GET (find many) API
+    const handleRefreshQuestions = async () => {
+        if (!session?._id) return;
+        setIsRefreshing(true);
+        try {
+            const qResponse = await questionService.getSessionQuestions(session._id);
+            if (qResponse.success) {
+                setQuestions(qResponse.data);
+                setLastRefreshedAt(new Date());
+            }
+        } catch (err) {
+            console.error('Error refreshing questions:', err);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    // Auto refresh every 5 seconds (polling fallback if sockets fail)
+    useEffect(() => {
+        if (!session?._id || !autoRefresh) return;
+
+        const interval = setInterval(async () => {
+            try {
+                const qResponse = await questionService.getSessionQuestions(session._id);
+                if (qResponse.success) {
+                    setQuestions(qResponse.data);
+                    setLastRefreshedAt(new Date());
+                }
+            } catch (err) {
+                console.error('Auto refresh questions error:', err);
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [session?._id, autoRefresh]);
 
     const deleteQuestion = async (id: string) => {
         try {
@@ -217,6 +256,41 @@ const QueryPPTView: React.FC = () => {
                         <span style={{ color: '#888', fontSize: '0.9rem' }}>
                             Slide {currentSlide + 1} of {totalSlides}
                         </span>
+                        <button
+                            onClick={handleRefreshQuestions}
+                            disabled={isRefreshing || !session}
+                            style={{
+                                padding: '0.4rem 1rem',
+                                background: '#242433',
+                                border: '1px solid #2d2d3a',
+                                borderRadius: '999px',
+                                color: 'white',
+                                cursor: isRefreshing || !session ? 'not-allowed' : 'pointer',
+                                fontSize: '0.8rem',
+                                opacity: isRefreshing || !session ? 0.6 : 1
+                            }}
+                        >
+                            {isRefreshing ? 'Refreshing...' : 'Refresh Questions'}
+                        </button>
+                        <button
+                            onClick={() => setAutoRefresh(prev => !prev)}
+                            style={{
+                                padding: '0.3rem 0.8rem',
+                                background: 'transparent',
+                                border: '1px solid #2d2d3a',
+                                borderRadius: '999px',
+                                color: autoRefresh ? '#4ade80' : '#f97316',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {autoRefresh ? 'Auto (5s) On' : 'Auto Off'}
+                        </button>
+                        {lastRefreshedAt && (
+                            <span style={{ color: '#555', fontSize: '0.7rem' }}>
+                                Last: {lastRefreshedAt.toLocaleTimeString()}
+                            </span>
+                        )}
                     </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <button
